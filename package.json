@@ -7,13 +7,24 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:supabase": "node --env-file=.env.local scripts/test-supabase.mjs",
+    "test:openai-image": "node --env-file=.env.local scripts/test-openai-image.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.7",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.42.2",
+    "jszip": "^3.10.1",
+    "lucide-react": "^1.24.0",
+    "openai": "^6.47.0",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
