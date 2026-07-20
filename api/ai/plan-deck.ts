@@ -9,16 +9,16 @@ import {
   type ApiRequest,
   type ApiResponse,
   type IncomingAttachment,
-} from '../_lib/http'
-import { DECK_PLAN_SCHEMA, PLAN_LIGHT_SCHEMA, SINGLE_SLIDE_SCHEMA } from '../_lib/deckSchema'
+} from '../_lib/http.js'
+import { DECK_PLAN_SCHEMA, PLAN_LIGHT_SCHEMA, SINGLE_SLIDE_SCHEMA } from '../_lib/deckSchema.js'
 import {
   readAiCatalog,
   resolveStageSelection,
   stageTimeoutMs,
   type AiStage,
   type ExecutionMode,
-} from '../_lib/aiConfig'
-import { getTextProvider } from '../_lib/textProviders'
+} from '../_lib/aiConfig.js'
+import { getTextProvider } from '../_lib/textProviders.js'
 
 // O modo Qualidade (plano monolítico com raciocínio alto) ainda pode ser
 // longo; planejamento leve e produção por slide ficam muito abaixo disso.

@@ -1,4 +1,4 @@
-import { readEnv } from '../_lib/env'
+import { readEnv } from '../_lib/env.js'
 import {
   handleError,
   requireBody,
@@ -6,9 +6,9 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { assertWorkspacePath } from '../_lib/storagePaths'
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin'
+} from '../_lib/http.js'
+import { assertWorkspacePath } from '../_lib/storagePaths.js'
+import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 const EXPIRES_SECONDS = 60 * 30 // 30 minutos — o cliente cacheia e renova
 

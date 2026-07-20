@@ -1,4 +1,4 @@
-import { HttpError } from './http'
+import { HttpError } from './http.js'
 
 /**
  * Catálogo central de provedores/modelos de IA — alimentado SOMENTE por

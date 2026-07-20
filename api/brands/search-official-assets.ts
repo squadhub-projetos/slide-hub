@@ -1,4 +1,4 @@
-import { readEnv } from '../_lib/env'
+import { readEnv } from '../_lib/env.js'
 import {
   handleError,
   requireBody,
@@ -6,9 +6,9 @@ import {
   requireString,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { ASSET_SUGGESTIONS_SCHEMA } from '../_lib/deckSchema'
-import { getOpenAi } from '../_lib/openaiClient'
+} from '../_lib/http.js'
+import { ASSET_SUGGESTIONS_SCHEMA } from '../_lib/deckSchema.js'
+import { getOpenAi } from '../_lib/openaiClient.js'
 
 // Ver nota em api/ai/plan-deck.ts — busca com web search pode ser lenta o
 // bastante para exceder o timeout padrão da Vercel sem este ajuste.

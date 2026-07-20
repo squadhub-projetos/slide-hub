@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { HttpError } from './http'
-import { anthropicApiKey, type ExecutionMode, type TextProviderId } from './aiConfig'
+import { HttpError } from './http.js'
+import { anthropicApiKey, type ExecutionMode, type TextProviderId } from './aiConfig.js'
 
 /**
  * Camada comum de geração TEXTUAL estruturada para OpenAI e Anthropic.

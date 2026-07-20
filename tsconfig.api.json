@@ -1,23 +1,9 @@
 {
+  /* Typecheck local das funções /api (tsc -b) — estende o tsconfig REAL
+     usado pela Vercel (api/tsconfig.json) para as opções nunca divergirem. */
+  "extends": "./api/tsconfig.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.api.tsbuildinfo",
-    "target": "es2023",
-    "lib": ["ES2023"],
-    "types": ["node"],
-    "skipLibCheck": true,
-
-    /* Funções Vercel (bundladas por esbuild) + bridge dev do Vite */
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.api.tsbuildinfo"
   },
   "include": ["api"]
 }

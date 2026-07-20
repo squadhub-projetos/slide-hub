@@ -1,5 +1,5 @@
-import { readEnv } from '../_lib/env'
-import { sha256Hex } from '../_lib/hashNode'
+import { readEnv } from '../_lib/env.js'
+import { sha256Hex } from '../_lib/hashNode.js'
 import {
   handleError,
   requireBody,
@@ -9,9 +9,9 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { assertSafeKey, libraryPath, projectPath, sanitizeFilename } from '../_lib/storagePaths'
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin'
+} from '../_lib/http.js'
+import { assertSafeKey, libraryPath, projectPath, sanitizeFilename } from '../_lib/storagePaths.js'
+import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const ALLOWED_MIME = new Set([

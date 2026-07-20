@@ -1,6 +1,6 @@
 import OpenAI, { toFile } from 'openai'
-import { HttpError } from './http'
-import type { ServerEnv } from './env'
+import { HttpError } from './http.js'
+import type { ServerEnv } from './env.js'
 
 let client: OpenAI | null = null
 

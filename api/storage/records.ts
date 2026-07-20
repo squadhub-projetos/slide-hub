@@ -1,4 +1,4 @@
-import { readEnv } from '../_lib/env'
+import { readEnv } from '../_lib/env.js'
 import {
   handleError,
   requireBody,
@@ -8,13 +8,13 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
+} from '../_lib/http.js'
 import {
   SupabaseRecordRepository,
   assertRecordType,
   validateRecordInput,
-} from '../_lib/records'
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin'
+} from '../_lib/records.js'
+import { getSupabaseAdmin } from '../_lib/supabaseAdmin.js'
 
 /**
  * Multiplexador de operações sobre slide_hub_records:

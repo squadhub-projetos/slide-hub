@@ -1,6 +1,6 @@
-import { readEnv } from '../_lib/env'
-import { handleError, type ApiRequest, type ApiResponse } from '../_lib/http'
-import { isSupabaseConfigured } from '../_lib/supabaseAdmin'
+import { readEnv } from '../_lib/env.js'
+import { handleError, type ApiRequest, type ApiResponse } from '../_lib/http.js'
+import { isSupabaseConfigured } from '../_lib/supabaseAdmin.js'
 
 /**
  * Estado da configuração server-side, para o indicador de modo da interface.

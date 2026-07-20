@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { HttpError } from './http'
-import type { ServerEnv } from './env'
+import { HttpError } from './http.js'
+import type { ServerEnv } from './env.js'
 
 /**
  * Cliente administrativo do Supabase — EXCLUSIVAMENTE server-side.

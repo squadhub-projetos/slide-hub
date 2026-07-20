@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ServerEnv } from './env'
-import { sha256Hex } from './hashNode'
-import { SupabaseRecordRepository } from './records'
-import { projectPath, type ProjectArea } from './storagePaths'
-import { getSupabaseAdmin, isSupabaseConfigured } from './supabaseAdmin'
+import type { ServerEnv } from './env.js'
+import { sha256Hex } from './hashNode.js'
+import { SupabaseRecordRepository } from './records.js'
+import { projectPath, type ProjectArea } from './storagePaths.js'
+import { getSupabaseAdmin, isSupabaseConfigured } from './supabaseAdmin.js'
 
 export interface PersistedImage {
   storagePath?: string

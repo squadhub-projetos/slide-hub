@@ -1,5 +1,5 @@
-import { handleError, type ApiRequest, type ApiResponse } from '../_lib/http'
-import { readAiCatalog } from '../_lib/aiConfig'
+import { handleError, type ApiRequest, type ApiResponse } from '../_lib/http.js'
+import { readAiCatalog } from '../_lib/aiConfig.js'
 
 /**
  * Catálogo público de provedores/modelos habilitados, POR ETAPA — alimenta

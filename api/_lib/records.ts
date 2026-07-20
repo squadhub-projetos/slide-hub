@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { HttpError } from './http'
+import { HttpError } from './http.js'
 
 /**
  * Repositório genérico sobre public.slide_hub_records.

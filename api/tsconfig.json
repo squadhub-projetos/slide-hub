@@ -1,0 +1,24 @@
+{
+  /* Config REAL das Vercel Functions: o builder da Vercel usa o tsconfig
+     mais próximo dos handlers — este arquivo. O tsconfig.api.json da raiz
+     estende este para o typecheck local (tsc -b) usar as MESMAS opções.
+     NodeNext exige imports relativos com extensão .js explícita. */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["**/*.ts"]
+}

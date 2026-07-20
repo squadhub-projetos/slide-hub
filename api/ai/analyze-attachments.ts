@@ -1,4 +1,4 @@
-import { readEnv } from '../_lib/env'
+import { readEnv } from '../_lib/env.js'
 import {
   handleError,
   requireBody,
@@ -7,8 +7,8 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { getOpenAi } from '../_lib/openaiClient'
+} from '../_lib/http.js'
+import { getOpenAi } from '../_lib/openaiClient.js'
 
 // Ver nota em api/ai/plan-deck.ts — chamadas de IA real podem exceder o
 // timeout padrão da Vercel sem este ajuste.

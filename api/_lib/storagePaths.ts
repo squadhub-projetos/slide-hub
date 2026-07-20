@@ -1,4 +1,4 @@
-import { HttpError } from './http'
+import { HttpError } from './http.js'
 
 /**
  * Todos os caminhos do bucket são gerados AQUI, no servidor — o cliente

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { readEnv, resolveImageParams } from '../_lib/env'
-import { sha256Hex } from '../_lib/hashNode'
+import { readEnv, resolveImageParams } from '../_lib/env.js'
+import { sha256Hex } from '../_lib/hashNode.js'
 import {
   handleError,
   requireBody,
@@ -11,9 +11,9 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { persistGeneratedImage } from '../_lib/imagePersistence'
-import { dataUrlToFile, getOpenAi } from '../_lib/openaiClient'
+} from '../_lib/http.js'
+import { persistGeneratedImage } from '../_lib/imagePersistence.js'
+import { dataUrlToFile, getOpenAi } from '../_lib/openaiClient.js'
 
 // Ver nota em api/ai/plan-deck.ts — geração/edição de imagem em qualidade
 // alta/4K também pode exceder o timeout padrão da Vercel sem este ajuste.

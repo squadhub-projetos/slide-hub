@@ -7,8 +7,8 @@ import {
   HttpError,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { anthropicApiKey } from '../_lib/aiConfig'
+} from '../_lib/http.js'
+import { anthropicApiKey } from '../_lib/aiConfig.js'
 
 /**
  * "Testar modelo": valida rapidamente se um modelo existe/está acessível
