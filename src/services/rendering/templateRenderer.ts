@@ -20,6 +20,8 @@ export interface TemplateRenderContext {
   snippets: Snippet[]
   /** layerId → dataURL de imagem real (regiões de IA / placeholders de imagem). */
   regionImages?: Record<string, string>
+  /** layerId → encaixe da imagem. 'contain' preserva a foto inteira (retratos). */
+  regionFits?: Record<string, 'cover' | 'contain'>
   /** assetId/binding → dataURL de ativo da biblioteca. */
   assetImages?: Record<string, string>
   /** Valores de parâmetros de snippets (por binding "param.x"). */
@@ -28,6 +30,12 @@ export interface TemplateRenderContext {
   slideNumber: number
   totalSlides: number
   nextSlideTitle?: string
+  /**
+   * Entropia de regeneração: mesma configuração + seed diferente produz
+   * variação sutil nos elementos decorativos — "Regenerar" nunca devolve
+   * um arquivo pixel-idêntico sem avisar.
+   */
+  variantSeed?: number
 }
 
 function contentTitle(item: string): { title: string; rest: string } {
@@ -153,14 +161,27 @@ function drawWrappedText(
   ctx2d.textAlign = 'left'
 }
 
-function drawImageCover(ctx2d: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, radius = 0): void {
+function drawImageFit(
+  ctx2d: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius = 0,
+  fit: 'cover' | 'contain' = 'cover',
+): void {
   ctx2d.save()
   if (radius > 0) {
     ctx2d.beginPath()
     ctx2d.roundRect(x, y, w, h, radius)
     ctx2d.clip()
   }
-  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+  // 'contain' nunca corta a imagem (fotos de pessoas); 'cover' preenche.
+  const scale =
+    fit === 'contain'
+      ? Math.min(w / img.naturalWidth, h / img.naturalHeight)
+      : Math.max(w / img.naturalWidth, h / img.naturalHeight)
   const dw = img.naturalWidth * scale
   const dh = img.naturalHeight * scale
   ctx2d.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh)
@@ -201,7 +222,7 @@ export async function renderTemplate(ctx: TemplateRenderContext): Promise<string
     .filter((l) => l.visible)
     .sort((a, b) => a.zIndex - b.zIndex)
 
-  const rng = createRng(hashString(template.id + ctx.plan.id))
+  const rng = createRng(hashString(template.id + ctx.plan.id) + (ctx.variantSeed ?? 0) * 7919)
 
   for (const layer of layers) {
     const x = layer.x * RENDER_W
@@ -218,7 +239,8 @@ export async function renderTemplate(ctx: TemplateRenderContext): Promise<string
 
     switch (layer.type) {
       case 'text-placeholder': {
-        drawWrappedText(ctx2d, layer, resolveBinding(layer.binding, ctx), style)
+        // Texto literal (overlay criativo) tem precedência sobre binding de slot.
+        drawWrappedText(ctx2d, layer, layer.staticText ?? resolveBinding(layer.binding, ctx), style)
         break
       }
       case 'shape': {
@@ -327,20 +349,49 @@ export async function renderTemplate(ctx: TemplateRenderContext): Promise<string
         const src = ctx.regionImages?.[layer.id]
         if (src) {
           const img = await loadImage(src)
-          drawImageCover(ctx2d, img, x, y, w, h, layer.type === 'image-placeholder' ? 14 : 0)
+          drawImageFit(
+            ctx2d,
+            img,
+            x,
+            y,
+            w,
+            h,
+            layer.type === 'image-placeholder' ? 14 : 0,
+            ctx.regionFits?.[layer.id] ?? 'cover',
+          )
         } else {
-          // Sem imagem: preenchimento decorativo do estilo (modo estruturado)
+          // Sem imagem: painel decorativo ACABADO do estilo — nunca uma
+          // "caixa vazia" com borda tracejada parecendo slide inacabado.
           const fillGrad = ctx2d.createLinearGradient(x, y, x + w, y + h)
-          fillGrad.addColorStop(0, `${style.palette.primary}26`)
-          fillGrad.addColorStop(1, `${style.palette.secondary}1f`)
+          fillGrad.addColorStop(0, `${style.palette.primary}33`)
+          fillGrad.addColorStop(1, `${style.palette.surface}66`)
           ctx2d.fillStyle = fillGrad
           ctx2d.beginPath()
           ctx2d.roundRect(x, y, w, h, layer.type === 'image-placeholder' ? 14 : 0)
           ctx2d.fill()
-          ctx2d.strokeStyle = `${style.palette.accent}44`
-          ctx2d.setLineDash([8, 8])
-          ctx2d.stroke()
-          ctx2d.setLineDash([])
+          // Composição geométrica discreta na linguagem do estilo.
+          ctx2d.save()
+          ctx2d.clip()
+          ctx2d.strokeStyle = `${style.palette.accent}2e`
+          ctx2d.lineWidth = Math.max(1.5, RENDER_H / 600)
+          const step = Math.max(28, h / 7)
+          for (let dx = -h; dx < w + h; dx += step) {
+            ctx2d.beginPath()
+            ctx2d.moveTo(x + dx, y + h)
+            ctx2d.lineTo(x + dx + h * 0.6, y)
+            ctx2d.stroke()
+          }
+          ctx2d.fillStyle = `${style.palette.accent}22`
+          ctx2d.beginPath()
+          ctx2d.arc(
+            x + w * (0.62 + rng() * 0.28),
+            y + h * (0.2 + rng() * 0.35),
+            Math.min(w, h) * (0.16 + rng() * 0.12),
+            0,
+            Math.PI * 2,
+          )
+          ctx2d.fill()
+          ctx2d.restore()
         }
         break
       }

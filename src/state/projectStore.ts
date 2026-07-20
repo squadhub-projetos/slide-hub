@@ -54,7 +54,10 @@ export function defaultPlannerConfig(styleId: string | null): PlannerConfig {
     variationsPerSlide: 1,
     imageQuality: 'high',
     webAssetPolicy: 'attachments-only',
-    defaultStrategy: 'template-guided',
+    // PROJETOS NOVOS nascem no Criativo por IA: o template é referência
+    // de linguagem visual, não molde. Projetos antigos preservam a
+    // estratégia já salva (nada é alterado silenciosamente).
+    defaultStrategy: 'ai-generated',
     aiComposition: 'overlay',
   }
 }

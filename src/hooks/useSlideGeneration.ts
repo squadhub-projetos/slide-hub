@@ -6,7 +6,13 @@ import { renderMockAiImage } from '../services/rendering/mockArt'
 import { composeAiVisualWithText } from '../services/rendering/overlayText'
 import { renderTemplate } from '../services/rendering/templateRenderer'
 import { recommendTemplate } from '../config/defaultTemplates'
+import {
+  buildDeckVisualBible,
+  compileCreativeBrief,
+  selectReferences,
+} from '../services/ai/creativePromptCompiler'
 import { useAiStatusStore } from '../state/aiStatusStore'
+import { useAiTestConfigStore } from '../state/aiTestConfigStore'
 import { useAttachmentStore } from '../state/attachmentStore'
 import { useLibraryStore } from '../state/libraryStore'
 import { useProjectStore } from '../state/projectStore'
@@ -53,8 +59,30 @@ function stage(slideId: string, s: GenerationStage) {
 }
 
 function resolveStrategy(slide: Slide): RenderStrategy {
+  // PRECEDÊNCIA: a escolha EXPLÍCITA do usuário no slide vence sempre —
+  // era o bug do "Regenerar com esta configuração": o seletor global de
+  // testes sobrepunha a estratégia recém-escolhida no slide.
+  if (slide.plan.renderStrategy) return slide.plan.renderStrategy
+  const visual = useAiTestConfigStore.getState().config.visualStrategy
+  if (visual === 'ai-creative') return 'ai-generated'
+  if (visual === 'none') return 'structured'
+  if (visual === 'template-assets' || visual === 'hybrid') return 'template-guided'
   const project = useProjectStore.getState().project
-  return slide.plan.renderStrategy ?? project?.plannerConfig.defaultStrategy ?? 'template-guided'
+  return project?.plannerConfig.defaultStrategy ?? 'ai-generated'
+}
+
+/** Sinaliza (sem carregar blobs) se o slide tem foto/ativo real a aplicar. */
+function hasPlacementAssets(slide: Slide): boolean {
+  const project = useProjectStore.getState().project
+  if (!project) return false
+  return useAttachmentStore.getState().byOwner(project.id).some((a) => {
+    if (a.role === 'do-not-use' || a.role === 'logo' || a.referenceOnly) return false
+    if (!PLACEABLE_ROLES.has(a.role)) return false
+    if (a.processing !== 'ready' || !a.mimeType.startsWith('image/')) return false
+    if (a.scope === 'planning-only' || a.scope === 'visual-reference-only') return false
+    if (a.scope === 'selected-slides') return a.linkedSlideIds.includes(slide.id) || slide.plan.attachmentIds.includes(a.id)
+    return true
+  })
 }
 
 function resolveTemplate(slide: Slide, style: DesignStyle): SlideTemplate | null {
@@ -63,7 +91,14 @@ function resolveTemplate(slide: Slide, style: DesignStyle): SlideTemplate | null
   if (slide.plan.templateId && slide.plan.templateId !== 'auto') {
     return useTemplateStore.getState().getById(slide.plan.templateId)
   }
-  return recommendTemplate(templates, style.id, slide.plan.layout)
+  // Slide com foto anexada prioriza template capaz de recebê-la; slide
+  // sem imagem evita template com slot — nada de área vazia como "pronto".
+  return recommendTemplate(
+    templates,
+    style.id,
+    slide.plan.layout,
+    hasPlacementAssets(slide) ? 'with' : 'without',
+  )
 }
 
 async function collectAttachments(slide: Slide): Promise<AttachmentForAi[]> {
@@ -215,6 +250,7 @@ function pushVersions(
     templateId?: string | null
     snippetIds?: string[]
     revisionNote?: string
+    creative?: SlideVersion['creative']
   },
   startCount: number,
 ) {
@@ -243,16 +279,116 @@ function pushVersions(
       generation: image.metadata,
       unchangedFromSource: image.unchangedFromSource,
       revisionNote: base.revisionNote,
+      creative: base.creative,
       createdAt: new Date().toISOString(),
     }
     useProjectStore.getState().pushVersion(slideId, version)
   })
 }
 
-/** Regiões de IA de um template (image-placeholder também conta como região). */
+/**
+ * Regiões de IA de um template — SOMENTE camadas 'ai-region'.
+ * 'image-placeholder' NÃO é região de IA: é o lugar de uma imagem REAL
+ * (foto anexada, ativo da biblioteca). Tratá-lo como região era a causa
+ * de chamadas de imagem desnecessárias e de fotos anexadas substituídas
+ * por arte genérica.
+ */
 function aiRegionsOf(template: SlideTemplate | null) {
   if (!template) return []
-  return template.layers.filter((l) => l.visible && (l.type === 'ai-region' || l.type === 'image-placeholder'))
+  return template.layers.filter((l) => l.visible && l.type === 'ai-region')
+}
+
+function imagePlaceholdersOf(template: SlideTemplate | null) {
+  if (!template) return []
+  return template.layers.filter((l) => l.visible && l.type === 'image-placeholder')
+}
+
+/**
+ * Regiões de IA de CONTEÚDO (não full-bleed): quando existe um ativo real
+ * (foto anexada), ele ocupa a região em vez de gerar uma imagem — a foto
+ * do usuário nunca é substituída por arte genérica. Fundos full-bleed
+ * continuam sendo território de geração/decoração.
+ */
+function contentRegionsOf(template: SlideTemplate | null) {
+  if (!template) return []
+  return template.layers.filter(
+    (l) => l.visible && l.type === 'ai-region' && !(l.width >= 0.95 && l.height >= 0.95),
+  )
+}
+
+const PLACEABLE_ROLES = new Set(['photo', 'person', 'product', 'chart', 'diagram', 'screenshot', 'required-content', 'visual-reference'])
+
+interface PlacementBindings {
+  /** layerId → dataURL do arquivo REAL do anexo. */
+  regionImages: Record<string, string>
+  /** layerId → modo de encaixe (retratos nunca são cortados por padrão). */
+  regionFits: Record<string, 'cover' | 'contain'>
+  boundAssetIds: string[]
+  /** Nomes de ativos obrigatórios que NÃO couberam em nenhum placeholder. */
+  unplacedRequired: string[]
+}
+
+/**
+ * Vincula anexos de imagem aos image-placeholders do template — a foto
+ * anexada vira camada REAL da composição, nunca recriada pela IA.
+ */
+async function collectPlacementBindings(slide: Slide, template: SlideTemplate | null): Promise<PlacementBindings> {
+  const empty: PlacementBindings = { regionImages: {}, regionFits: {}, boundAssetIds: [], unplacedRequired: [] }
+  const project = useProjectStore.getState().project
+  if (!project || !template) return empty
+  // Alvos de imagem real: placeholders primeiro, depois regiões de conteúdo.
+  const placeholders = [...imagePlaceholdersOf(template), ...contentRegionsOf(template)]
+  const owned = useAttachmentStore.getState().byOwner(project.id)
+  const eligible = owned.filter((a) => {
+    if (a.role === 'do-not-use' || a.role === 'logo' || a.referenceOnly) return false
+    if (!PLACEABLE_ROLES.has(a.role)) return false
+    if (a.processing !== 'ready' || !a.mimeType.startsWith('image/')) return false
+    if (a.scope === 'planning-only' || a.scope === 'visual-reference-only') return false
+    if (a.scope === 'selected-slides') return a.linkedSlideIds.includes(slide.id) || slide.plan.attachmentIds.includes(a.id)
+    return true
+  })
+  if (eligible.length === 0) return empty
+
+  // Prioridade: vinculado a este slide > obrigatório > pessoa/foto > demais.
+  const score = (a: (typeof eligible)[number]) =>
+    (a.linkedSlideIds.includes(slide.id) || slide.plan.attachmentIds.includes(a.id) ? 8 : 0) +
+    (a.required || a.mustAppearExactly ? 4 : 0) +
+    (a.role === 'person' || a.role === 'photo' ? 2 : 0)
+  const ordered = [...eligible].sort((a, b) => score(b) - score(a))
+
+  const result: PlacementBindings = { regionImages: {}, regionFits: {}, boundAssetIds: [], unplacedRequired: [] }
+  for (let i = 0; i < placeholders.length && i < ordered.length; i++) {
+    const asset = ordered[i]
+    const blob = await blobStore.get(asset.storageKey)
+    if (!blob) continue
+    const layer = placeholders[i]
+    result.regionImages[layer.id] = await blobToDataUrl(blob)
+    result.regionFits[layer.id] =
+      (asset.role === 'person' || asset.role === 'photo') && !asset.allowCrop
+        ? 'contain'
+        : asset.role === 'person' || asset.role === 'photo'
+          ? 'contain'
+          : 'cover'
+    result.boundAssetIds.push(asset.id)
+  }
+  for (const asset of ordered) {
+    const isRequired = asset.required || asset.mustAppearExactly
+    const isForThisSlide = asset.linkedSlideIds.includes(slide.id) || slide.plan.attachmentIds.includes(asset.id)
+    if (isRequired && isForThisSlide && !result.boundAssetIds.includes(asset.id)) {
+      result.unplacedRequired.push(asset.name || asset.fileName)
+    }
+  }
+  return result
+}
+
+/** Ativo obrigatório sem lugar no slide NUNCA é omitido em silêncio. */
+function warnUnplacedRequired(unplaced: string[]) {
+  if (unplaced.length === 0) return
+  useUiStore.getState().toast(
+    'error',
+    'Ativo obrigatório não aplicado',
+    `O slide foi gerado, mas ${unplaced.join(', ')} não coube em nenhum espaço de imagem do template. Troque o template do slide ou ajuste o anexo.`,
+  )
 }
 
 async function runGeneration(ctx: StrategyContext): Promise<void> {
@@ -277,8 +413,41 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
     stage(slide.id, 'building-prompt')
     const request = await buildRequest(slide, strategy, style, ctx.variations)
     if (!request) return
+    // CRIATIVO POR IA: o template é REFERÊNCIA de linguagem visual, não
+    // molde. O compilador (local, instantâneo) monta o prompt rico com
+    // arquétipo anti-repetição, bíblia visual do deck e ≤3 referências.
+    const index = project.slides.findIndex((s) => s.id === slide.id)
+    const previous = project.slides[index - 1]
+    const previousArchetype =
+      previous?.versions.find((v) => v.id === previous.currentVersionId)?.creative?.compositionArchetype ?? null
+    const testCfg = useAiTestConfigStore.getState().config
+    const brief = compileCreativeBrief({
+      plan: slide.plan,
+      slideId: slide.id,
+      index,
+      total: project.slides.length,
+      deckBible: buildDeckVisualBible(style, project.plannerConfig, project.name),
+      previousArchetype,
+      adjacentTitles: {
+        previous: previous?.plan.title,
+        next: project.slides[index + 1]?.plan.title,
+      },
+      references: selectReferences(useTemplateStore.getState().all(), style.id, slide.plan),
+      influence: testCfg.referenceInfluence,
+      attachments: request.attachments,
+    })
+    const creativeMeta = {
+      compositionArchetype: brief.compositionArchetype,
+      referenceIds: brief.referenceIds,
+      referenceInfluence: brief.referenceInfluence,
+      promptChars: brief.prompt.length,
+      overlaySpec: brief.overlaySpec,
+    }
     stage(slide.id, 'calling-ai')
-    const result = await getAiProvider().generateSlide(request)
+    const result = await getAiProvider().generateSlide({
+      ...request,
+      slidePlan: { ...slide.plan, productionPrompt: brief.prompt, negativePrompt: brief.negativePrompt },
+    })
     stage(slide.id, 'receiving')
     const composeText = project.plannerConfig.aiComposition !== 'full'
     stage(slide.id, 'compositing')
@@ -293,6 +462,7 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
           projectName: project.name,
           slideNumber: request.index + 1,
           totalSlides: request.total,
+          overlaySpec: brief.overlaySpec,
         })
         return { dataUrl: composed, raw: image.dataUrl, metadata: image.metadata }
       }),
@@ -300,6 +470,9 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
     stage(slide.id, 'storing')
     pushVersions(slide.id, groupId, images, {
       ...baseInfo,
+      prompt: brief.prompt,
+      negativePrompt: brief.negativePrompt,
+      creative: creativeMeta,
       attachmentIds: request.attachments.map((a) => a.id),
       model: result.model,
       quality: result.quality,
@@ -310,13 +483,27 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
   }
 
   if (strategy === 'template-guided' && template) {
-    const regions = aiRegionsOf(template)
+    // Foto/ativos anexados entram DIRETO nos placeholders e nas regiões
+    // de conteúdo — arquivo real na composição, zero chamadas de imagem.
+    stage(slide.id, 'resolving-assets')
+    const placements = await collectPlacementBindings(slide, template)
+    // Só restam para geração as regiões que NÃO receberam um ativo real.
+    const regions = aiRegionsOf(template).filter((r) => !placements.regionImages[r.id])
+    const testCfg = useAiTestConfigStore.getState().config
+    // Regiões de IA só são geradas quando agregam valor: nunca no modo
+    // "Template e ativos"; no híbrido/auto, pular quando "somente quando
+    // necessário" está ativo e o slide já tem imagem real vinculada.
+    const shouldGenerateRegions =
+      regions.length > 0 &&
+      testCfg.visualStrategy !== 'template-assets' &&
+      !(testCfg.generateImagesOnlyWhenNeeded && placements.boundAssetIds.length > 0)
+
     let regionResults: string[][] = []
     let fileSource: SlideResult['fileSource'] = 'renderer'
     let model = 'template-renderer'
     let variations = ctx.variations
 
-    if (regions.length > 0) {
+    if (shouldGenerateRegions) {
       const request = await buildRequest(slide, strategy, style, ctx.variations)
       if (!request) return
       const region = regions[0]
@@ -332,6 +519,9 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
         stage(slide.id, 'calling-ai')
         const result = await getAiProvider().generateSlide({
           ...request,
+          // Referências visuais NÃO incluem os ativos já compostos como
+          // camada real — evita a IA "recriar" a foto no fundo.
+          attachments: request.attachments.filter((a) => !placements.boundAssetIds.includes(a.id)),
           slidePlan: { ...slide.plan, productionPrompt: regionPrompt, negativePrompt: region.generationBehavior?.localNegativePrompt ?? slide.plan.negativePrompt },
         })
         stage(slide.id, 'receiving')
@@ -355,10 +545,10 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
     const renderCtx = templateRenderCtx(slide, style, template)
     const images = await Promise.all(
       Array.from({ length: Math.max(1, variations) }, async (_, i) => {
-        const regionImages: Record<string, string> = {}
+        const regionImages: Record<string, string> = { ...placements.regionImages }
         const regionSet = regionResults[i] ?? regionResults[0]
         if (regionSet) regions.forEach((r, ri) => { if (regionSet[ri] ?? regionSet[0]) regionImages[r.id] = regionSet[ri] ?? regionSet[0] })
-        const dataUrl = await renderTemplate({ ...renderCtx, regionImages })
+        const dataUrl = await renderTemplate({ ...renderCtx, regionImages, regionFits: placements.regionFits, variantSeed: slide.versions.length + i })
         return { dataUrl, metadata: await rendererMetadata(dataUrl, model, startedAt, 'generation') }
       }),
     )
@@ -368,11 +558,13 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
     }
     pushVersions(slide.id, groupId, images, {
       ...baseInfo,
+      attachmentIds: placements.boundAssetIds,
       model,
       quality: project.plannerConfig.imageQuality,
       resolution: '1920x1080',
       fileSource,
     }, slide.versions.length)
+    warnUnplacedRequired(placements.unplacedRequired)
     return
   }
 
@@ -380,15 +572,24 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
   stage(slide.id, 'compositing')
   useProjectStore.getState().patchSlide(slide.id, { requestedVariations: 1 })
   if (template) {
-    const dataUrl = await renderTemplate(templateRenderCtx(slide, style, template))
+    // Mesmo sem geração de imagem, os ativos reais entram na composição.
+    const placements = await collectPlacementBindings(slide, template)
+    const dataUrl = await renderTemplate({
+      ...templateRenderCtx(slide, style, template),
+      regionImages: placements.regionImages,
+      regionFits: placements.regionFits,
+      variantSeed: slide.versions.length,
+    })
     pushVersions(slide.id, groupId, [{ dataUrl, metadata: await rendererMetadata(dataUrl, 'structured-renderer', startedAt, 'generation') }], {
       ...baseInfo,
+      attachmentIds: placements.boundAssetIds,
       strategy: 'structured',
       model: 'structured-renderer',
       quality: 'deterministic',
       resolution: '1920x1080',
       fileSource: 'renderer',
     }, slide.versions.length)
+    warnUnplacedRequired(placements.unplacedRequired)
   } else {
     const index = project.slides.findIndex((s) => s.id === slide.id)
     const svg = renderSlideSvg({
@@ -494,7 +695,13 @@ export function useSlideGeneration() {
           stage(slideId, 'compositing')
           useProjectStore.getState().patchSlide(slideId, { requestedVariations: 1 })
           if (template && strategy !== 'structured') {
-            const dataUrl = await renderTemplate(templateRenderCtx(slide, style, template))
+            const placements = await collectPlacementBindings(slide, template)
+            const dataUrl = await renderTemplate({
+              ...templateRenderCtx(slide, style, template),
+              regionImages: placements.regionImages,
+              regionFits: placements.regionFits,
+              variantSeed: slide.versions.length,
+            })
             pushVersions(slideId, groupId, [{ dataUrl, metadata: await rendererMetadata(dataUrl, 'template-renderer', startedAt, 'edit', current.generation?.outputHash) }], {
               ...baseInfo, model: 'template-renderer', quality: 'deterministic', resolution: '1920x1080', fileSource: 'renderer',
             }, slide.versions.length)
@@ -539,9 +746,16 @@ export function useSlideGeneration() {
               if (!image.dataUrl) return image
               if (strategy === 'template-guided' && template) {
                 const regions = aiRegionsOf(template)
-                const regionImages: Record<string, string> = {}
-                regions.forEach((r) => { regionImages[r.id] = image.dataUrl! })
-                const composed = await renderTemplate({ ...templateRenderCtx(slide, style, template), regionImages })
+                const placements = await collectPlacementBindings(slide, template)
+                const regionImages: Record<string, string> = { ...placements.regionImages }
+                // Ativos reais têm prioridade — a edição de IA só preenche
+                // regiões que não estão ocupadas por um anexo.
+                regions.forEach((r) => { if (!placements.regionImages[r.id]) regionImages[r.id] = image.dataUrl! })
+                const composed = await renderTemplate({
+                  ...templateRenderCtx(slide, style, template),
+                  regionImages,
+                  regionFits: placements.regionFits,
+                })
                 return { dataUrl: composed, raw: image.dataUrl, metadata: image.metadata, unchangedFromSource: image.unchangedFromSource }
               }
               if (!composeText) return { dataUrl: image.dataUrl, raw: image.dataUrl, metadata: image.metadata, unchangedFromSource: image.unchangedFromSource }

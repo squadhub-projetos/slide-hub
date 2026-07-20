@@ -74,9 +74,22 @@ function StrategyControls({ slide }: { slide: Slide }) {
         type="button"
         className="btn btn-ghost btn-sm"
         style={{ marginTop: 8, width: '100%' }}
-        onClick={() => regenerateSlide(slide.id)}
+        disabled={slide.status === 'generating'}
+        onClick={() => {
+          // Regenera SOMENTE este slide, com a configuração atual do
+          // painel (estratégia/template recém-escolhidos têm precedência
+          // garantida em resolveStrategy). A versão anterior é preservada
+          // e a nova variação entra como versão nova — sem cache visual.
+          regenerateSlide(slide.id)
+          useUiStore.getState().toast(
+            'info',
+            'Regenerando este slide',
+            `Nova versão de “${slide.plan.title}” com a configuração atual. A versão anterior fica no histórico.`,
+          )
+        }}
       >
-        <RefreshCw size={13} aria-hidden="true" /> Regenerar com esta configuração
+        <RefreshCw size={13} aria-hidden="true" />
+        {slide.status === 'generating' ? 'Regenerando…' : 'Regenerar com esta configuração'}
       </button>
     </div>
   )
@@ -370,6 +383,24 @@ function VersionDetailsModal({
           <div><dt>Anexos</dt><dd>{version.attachmentIds.length > 0 ? version.attachmentIds.join(', ') : 'Nenhum'}</dd></div>
           <div><dt>Exportada</dt><dd>{version.exportedAt ? new Date(version.exportedAt).toLocaleString('pt-BR') : 'Não'}</dd></div>
         </dl>
+        {version.creative && (
+          <div className="field">
+            <label>Diagnóstico criativo</label>
+            <dl className="version-meta wide">
+              <div><dt>Arquétipo</dt><dd>{version.creative.compositionArchetype}</dd></div>
+              <div><dt>Influência das referências</dt><dd>{version.creative.referenceInfluence}</dd></div>
+              <div><dt>Referências usadas</dt><dd>{version.creative.referenceIds.length > 0 ? version.creative.referenceIds.join(', ') : 'Nenhuma'}</dd></div>
+              <div><dt>Tamanho do prompt</dt><dd>{version.creative.promptChars} chars</dd></div>
+            </dl>
+            {version.creative.overlaySpec && (
+              <pre className="plan-prompt" style={{ margin: '8px 0 0', maxHeight: 90 }}>
+                {version.creative.overlaySpec.elements
+                  .map((e) => `${e.type} @ (${e.x.toFixed(2)}, ${e.y.toFixed(2)}) ${e.width.toFixed(2)}×${e.height.toFixed(2)} · ${e.alignment}`)
+                  .join('\n')}
+              </pre>
+            )}
+          </div>
+        )}
         {version.revisionNote && (
           <div className="field">
             <label>Instrução da revisão</label>
@@ -377,8 +408,8 @@ function VersionDetailsModal({
           </div>
         )}
         <div className="field">
-          <label>Prompt usado</label>
-          <pre className="plan-prompt" style={{ margin: 0, maxHeight: 140 }}>{version.prompt || '—'}</pre>
+          <label>Prompt visual usado</label>
+          <pre className="plan-prompt" style={{ margin: 0, maxHeight: 200 }}>{version.prompt || '—'}</pre>
         </div>
         {version.negativePrompt && (
           <div className="field">

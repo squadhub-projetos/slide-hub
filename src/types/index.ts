@@ -4,14 +4,23 @@ import type { BrandLogoRules, WebAssetPolicy } from './brands'
 export type { AttachmentAsset, AttachmentForAi, AttachmentRole, AttachmentScope } from './attachments'
 export type {
   AiCallRecord,
+  AiCapabilities,
   AiMode,
   AiReadiness,
+  AiStageModelCatalog,
+  AiTestConfig,
+  CreativeVersionMeta,
   GeneratedImageMetadata,
   GenerationSource,
   GenerationStage,
+  LightPlan,
+  LightPlanSlide,
   PlanProvenance,
+  ReferenceInfluence,
   RenderStrategy,
   RevisionIntensity,
+  TextOverlayElement,
+  TextOverlaySpec,
 } from './generation'
 export { GENERATION_STAGE_LABELS, RENDER_STRATEGY_LABELS, REVISION_INTENSITY_LABELS } from './generation'
 export type {
@@ -20,6 +29,7 @@ export type {
   LayerShapeStyle,
   LayerTextStyle,
   SlideTemplate,
+  TemplateAiReference,
   TemplateBinding,
   TemplateLayer,
   TemplateLayerType,
@@ -116,6 +126,8 @@ export interface SlideVersion {
   snippetIds?: string[]
   /** Metadados completos da geração/edição real. */
   generation?: import('./generation').GeneratedImageMetadata
+  /** Diagnóstico criativo: arquétipo, referências, influência e overlay. */
+  creative?: import('./generation').CreativeVersionMeta
   /** true quando uma edição não produziu alteração visual detectável (hash igual). */
   unchangedFromSource?: boolean
   revisionNote?: string
@@ -453,6 +465,10 @@ export interface PlanDeckRequest {
   attachments: AttachmentForAi[]
   /** Turnos anteriores do chat (sem planos/anexos) — a IA usa a conversa toda. */
   history?: { role: 'user' | 'assistant'; text: string }[]
+  /** Overrides do seletor "Modelo de IA — testes" (validados no servidor). */
+  provider?: 'openai' | 'anthropic'
+  model?: string
+  executionMode?: 'fast' | 'balanced' | 'quality' | 'custom'
 }
 
 export interface ReplanSlideRequest {

@@ -97,6 +97,58 @@ export const DECK_PLAN_SCHEMA = {
 
 export const SINGLE_SLIDE_SCHEMA = PLANNED_SLIDE_SCHEMA
 
+/**
+ * Planejamento LEVE: decide título, mensagem, narrativa e o papel de cada
+ * slide — SEM texto final, sem productionPrompt, sem masterPrompt. A
+ * produção de cada slide acontece depois, em chamadas paralelas curtas.
+ */
+export const PLAN_LIGHT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'assistantMessage', 'title', 'subtitle', 'centralMessage', 'narrative',
+    'meetingType', 'audienceScope', 'audienceSegment', 'objective',
+    'understanding', 'inferred', 'missingInformation',
+    'slides', 'clarifyingQuestions',
+  ],
+  properties: {
+    assistantMessage: { type: 'string' },
+    title: { type: 'string' },
+    subtitle: { type: 'string' },
+    centralMessage: { type: 'string' },
+    narrative: { type: 'string' },
+    meetingType: { type: 'string', enum: ['checkpoint', 'kickoff', 'townhall', 'proposal'] },
+    audienceScope: { type: 'string', enum: ['internal', 'external'] },
+    audienceSegment: { type: 'string' },
+    objective: { type: 'string' },
+    understanding: { type: 'string' },
+    inferred: { type: 'array', items: { type: 'string' } },
+    missingInformation: { type: 'array', items: { type: 'string' } },
+    slides: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['order', 'layout', 'title', 'message', 'contentHints', 'requiresImage', 'assetIds'],
+        properties: {
+          order: { type: 'integer' },
+          layout: {
+            type: 'string',
+            enum: ['cover', 'textImage', 'bigNumber', 'comparison', 'process', 'timeline', 'conclusion', 'cta'],
+          },
+          title: { type: 'string' },
+          message: { type: 'string' },
+          /** 2-4 direções curtas do que este slide deve cobrir. */
+          contentHints: { type: 'array', items: { type: 'string' } },
+          requiresImage: { type: 'boolean' },
+          assetIds: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    clarifyingQuestions: { type: 'array', items: { type: 'string' } },
+  },
+} as const
+
 export const ASSET_SUGGESTIONS_SCHEMA = {
   type: 'object',
   additionalProperties: false,

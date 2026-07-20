@@ -88,6 +88,8 @@ export interface TemplateLayer {
   groupId?: string
   role?: LayerRole
   binding?: TemplateBinding
+  /** Texto LITERAL da camada (overlay criativo) — tem precedência sobre binding. */
+  staticText?: string
   /** Texto fixo/placeholder semântico ("Título principal", "Frase de efeito"…). */
   placeholderLabel?: string
   text?: LayerTextStyle
@@ -97,6 +99,25 @@ export interface TemplateLayer {
   snippetId?: string
   /** Índice do item quando a camada representa um item de lista/card. */
   contentIndex?: number
+}
+
+/**
+ * "Referência para a IA": como este template deve INSPIRAR composições
+ * criativas — linguagem visual, nunca slots a preencher. Editável na
+ * edição avançada do template; quando ausente, o perfil é derivado
+ * deterministicamente das camadas.
+ */
+export interface TemplateAiReference {
+  /** Descrição visual curta (atmosfera, composição, contraste). */
+  description?: string
+  /** Princípios da composição (o que faz este template funcionar). */
+  principles?: string
+  /** Papéis de slide recomendados (abertura, processo, dados…). */
+  suitableRoles?: string
+  /** Padrões que devem ser EVITADOS ao se inspirar nesta referência. */
+  avoid?: string
+  /** Exemplo de prompt no espírito desta referência. */
+  examplePrompt?: string
 }
 
 export interface SlideTemplate {
@@ -111,6 +132,8 @@ export interface SlideTemplate {
   layers: TemplateLayer[]
   snippetIds: string[]
   isSystem: boolean
+  /** Referência de linguagem visual para o modo Criativo por IA. */
+  aiReference?: TemplateAiReference
   /** Presente quando um template oficial recebeu override do usuário. */
   overriddenAt?: string
   previousVersions?: { savedAt: string; layers: TemplateLayer[] }[]

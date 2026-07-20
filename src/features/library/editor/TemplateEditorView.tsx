@@ -141,6 +141,7 @@ export function TemplateEditorView({ template, onClose, onSaveOverride }: Templa
   const requestConfirm = useUiStore((s) => s.requestConfirm)
 
   const [name, setName] = useState(template.name)
+  const [aiRef, setAiRef] = useState(template.aiReference ?? {})
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [showGrid, setShowGrid] = useState(true)
@@ -254,7 +255,7 @@ export function TemplateEditorView({ template, onClose, onSaveOverride }: Templa
       toast('success', 'Camadas salvas')
       return
     }
-    saveTemplate({ ...template, name, layers: editor.layers })
+    saveTemplate({ ...template, name, layers: editor.layers, aiReference: aiRef })
     toast('success', 'Template salvo', template.isSystem ? 'Override aplicado — o oficial pode ser restaurado a qualquer momento.' : undefined)
   }
 
@@ -479,9 +480,74 @@ export function TemplateEditorView({ template, onClose, onSaveOverride }: Templa
         <aside className="tpl-inspector" aria-label="Inspector">
           <h4>Inspector</h4>
           {!primary ? (
-            <p className="text-muted" style={{ fontSize: 12.5 }}>
-              Selecione uma camada no canvas ou na lista. Shift+clique seleciona várias.
-            </p>
+            <div className="tpl-inspector-fields">
+              <p className="text-muted" style={{ fontSize: 12.5 }}>
+                Selecione uma camada no canvas ou na lista. Shift+clique seleciona várias.
+              </p>
+              {/* "Referência para a IA": como o modo Criativo deve se
+                  INSPIRAR neste template — linguagem visual, nunca slots.
+                  Salvo junto ao template; quando vazio, o perfil é
+                  derivado automaticamente das camadas. */}
+              <h4 style={{ marginTop: 14 }}>Referência para a IA</h4>
+              <div className="field">
+                <label htmlFor="tplai-desc">Descrição visual</label>
+                <textarea
+                  id="tplai-desc"
+                  className="field-control"
+                  rows={3}
+                  placeholder="Atmosfera, composição, contraste — gerado automaticamente quando vazio."
+                  value={aiRef.description ?? ''}
+                  onChange={(e) => setAiRef((r) => ({ ...r, description: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="tplai-princ">Princípios da composição</label>
+                <textarea
+                  id="tplai-princ"
+                  className="field-control"
+                  rows={2}
+                  placeholder="O que faz esta composição funcionar."
+                  value={aiRef.principles ?? ''}
+                  onChange={(e) => setAiRef((r) => ({ ...r, principles: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="tplai-roles">Tipos de slide recomendados</label>
+                <input
+                  id="tplai-roles"
+                  className="field-control"
+                  placeholder="abertura, processo, dados…"
+                  value={aiRef.suitableRoles ?? ''}
+                  onChange={(e) => setAiRef((r) => ({ ...r, suitableRoles: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="tplai-avoid">Padrões a evitar</label>
+                <textarea
+                  id="tplai-avoid"
+                  className="field-control"
+                  rows={2}
+                  placeholder="O que NUNCA copiar desta referência."
+                  value={aiRef.avoid ?? ''}
+                  onChange={(e) => setAiRef((r) => ({ ...r, avoid: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="tplai-prompt">Exemplo de prompt</label>
+                <textarea
+                  id="tplai-prompt"
+                  className="field-control"
+                  rows={2}
+                  placeholder="Prompt no espírito desta referência (opcional)."
+                  value={aiRef.examplePrompt ?? ''}
+                  onChange={(e) => setAiRef((r) => ({ ...r, examplePrompt: e.target.value }))}
+                />
+              </div>
+              <p className="text-muted" style={{ fontSize: 11.5 }}>
+                Usado pelo modo Criativo por IA como linguagem visual — os slots deste template
+                nunca são preenchidos automaticamente nesse modo. Salve o template para aplicar.
+              </p>
+            </div>
           ) : (
             <InspectorFields layer={primary} editor={editor} />
           )}

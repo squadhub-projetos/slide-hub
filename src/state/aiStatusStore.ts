@@ -13,15 +13,19 @@ interface AiStatusState {
   server: ServerAiStatus | null
   /** Etapas REAIS da geração em andamento, por slide. */
   stages: Record<string, GenerationStage>
+  /** Progresso REAL do planejamento em duas fases ("Produzindo slides (2/4)…"). */
+  planningStatus: string | null
   check: () => Promise<void>
   setStage: (slideId: string, stage: GenerationStage) => void
   clearStage: (slideId: string) => void
+  setPlanningStatus: (status: string | null) => void
 }
 
 export const useAiStatusStore = create<AiStatusState>((set) => ({
   readiness: AI_MODE === 'mock' ? 'ready' : 'checking',
   server: null,
   stages: {},
+  planningStatus: null,
 
   check: async () => {
     if (AI_MODE === 'mock') {
@@ -44,6 +48,7 @@ export const useAiStatusStore = create<AiStatusState>((set) => ({
       delete stages[slideId]
       return { stages }
     }),
+  setPlanningStatus: (planningStatus) => set({ planningStatus }),
 }))
 
 export function aiModeLabel(readiness: AiReadiness): { label: string; tone: 'ok' | 'warn' | 'error' } {

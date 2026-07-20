@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AI_MODE } from '../../services/ai'
+import { useAiStatusStore } from '../../state/aiStatusStore'
 
 /**
  * Indicador honesto de espera pela IA: mostra tempo real decorrido em
@@ -13,6 +14,7 @@ import { AI_MODE } from '../../services/ai'
  */
 export function ThinkingIndicator() {
   const [elapsedMs, setElapsedMs] = useState(0)
+  const planningStatus = useAiStatusStore((s) => s.planningStatus)
 
   useEffect(() => {
     const startedAt = Date.now()
@@ -21,7 +23,8 @@ export function ThinkingIndicator() {
   }, [])
 
   const seconds = (elapsedMs / 1000).toFixed(1)
-  const label = AI_MODE === 'mock' ? 'Simulação local processando' : 'Consultando a IA'
+  // Estado REAL do pipeline (planejamento → produção N/M) quando existe.
+  const label = planningStatus ?? (AI_MODE === 'mock' ? 'Simulação local processando' : 'Consultando a IA')
 
   return (
     <div className="msg assistant" aria-live="polite">
@@ -30,6 +33,7 @@ export function ThinkingIndicator() {
       </div>
       <div className="msg-bubble msg-typing" aria-label={`${label}, ${seconds} segundos decorridos`}>
         <i /><i /><i />
+        <span className="msg-typing-elapsed">{label}</span>
         <span className="msg-typing-elapsed mono">{seconds}s</span>
       </div>
     </div>

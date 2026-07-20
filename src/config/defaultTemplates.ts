@@ -450,25 +450,69 @@ export const SYSTEM_TEMPLATES: SlideTemplate[] = [
 
 export const SYSTEM_TEMPLATE_IDS = new Set(SYSTEM_TEMPLATES.map((t) => t.id))
 
-/** Recomenda um template do estilo para um tipo de slide do plano. */
+/**
+ * Um template tem "alvo de imagem" quando possui image-placeholder ou uma
+ * região de IA de conteúdo (não full-bleed) — lugares onde uma foto REAL
+ * anexada pode ser composta.
+ */
+export function templateHasImageTarget(template: SlideTemplate): boolean {
+  return template.layers.some(
+    (l) =>
+      l.visible &&
+      (l.type === 'image-placeholder' ||
+        (l.type === 'ai-region' && !(l.width >= 0.95 && l.height >= 0.95))),
+  )
+}
+
+export type ImagePreference = 'with' | 'without' | 'any'
+
+/**
+ * Recomenda um template do estilo para um tipo de slide do plano.
+ * - 'with' (slide tem foto/ativo real): prioriza templates capazes de
+ *   RECEBER a imagem — foto anexada nunca cai num template só-texto.
+ * - 'without' (slide sem imagem): evita templates com slot de imagem —
+ *   um slide "pronto" nunca exibe uma grande área vazia.
+ */
 export function recommendTemplate(
   templates: SlideTemplate[],
   styleId: string | null,
   layoutKind: string,
+  imagePreference: ImagePreference = 'any',
 ): SlideTemplate | null {
   const pool = templates.filter((t) => t.styleId === styleId)
   const fallbackPool = pool.length > 0 ? pool : templates
   const kindMap: Record<string, string[]> = {
     cover: ['cover'],
-    textImage: ['textImage', 'cards'],
+    textImage: ['textImage', 'cards', 'pillars'],
     bigNumber: ['bigNumber'],
     comparison: ['comparison'],
     process: ['process'],
-    timeline: ['timeline'],
+    timeline: ['timeline', 'process'],
     conclusion: ['conclusion'],
     cta: ['cta', 'next', 'impact'],
   }
   const wanted = kindMap[layoutKind] ?? [layoutKind]
+
+  if (imagePreference === 'with') {
+    for (const kind of wanted) {
+      const found = fallbackPool.find((t) => t.kind === kind && templateHasImageTarget(t))
+      if (found) return found
+    }
+    // Nenhum do kind pedido aceita imagem: procura kinds que aceitam.
+    // Capa fica de fora — ela nunca troca de identidade por causa da foto.
+    if (layoutKind !== 'cover') {
+      for (const kind of ['people', 'textImage', 'cards']) {
+        const found = fallbackPool.find((t) => t.kind === kind && templateHasImageTarget(t))
+        if (found) return found
+      }
+    }
+  }
+  if (imagePreference === 'without' && layoutKind !== 'cover') {
+    for (const kind of wanted) {
+      const found = fallbackPool.find((t) => t.kind === kind && !templateHasImageTarget(t))
+      if (found) return found
+    }
+  }
   for (const kind of wanted) {
     const found = fallbackPool.find((t) => t.kind === kind)
     if (found) return found
