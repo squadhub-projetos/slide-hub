@@ -20,25 +20,32 @@ export const DEFAULT_AI_TEST_CONFIG: AiTestConfig = {
   // 'auto' respeita a estratégia do projeto/slide — a escolha explícita
   // do usuário no slide nunca é sobreposta por este seletor de testes.
   visualStrategy: 'auto',
-  referenceInfluence: 'moderate',
+  referenceInfluence: 'strong',
   generateImagesOnlyWhenNeeded: true,
   parallelSlideProduction: true,
   slideConcurrency: 3,
 }
 
 /** Versão do formato salvo — migra defaults antigos sem apagar escolhas. */
-const CONFIG_VERSION = 2
+const CONFIG_VERSION = 3
 
 function load(): AiTestConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_AI_TEST_CONFIG
     const stored = JSON.parse(raw) as Partial<AiTestConfig> & { _v?: number }
+    const version = stored._v ?? 1
     // v1 tinha 'template-assets' como padrão implícito — migra para o
     // novo padrão criativo sem tocar em quem escolheu outra estratégia
     // conscientemente depois da migração.
-    if ((stored._v ?? 1) < CONFIG_VERSION && stored.visualStrategy === 'template-assets') {
+    if (version < 2 && stored.visualStrategy === 'template-assets') {
       stored.visualStrategy = 'auto'
+    }
+    // v2 tinha 'moderate' como padrão implícito de influência das
+    // referências — promove para o novo padrão sem tocar em quem já
+    // escolheu outra intensidade conscientemente depois da migração.
+    if (version < 3 && stored.referenceInfluence === 'moderate') {
+      stored.referenceInfluence = 'strong'
     }
     return { ...DEFAULT_AI_TEST_CONFIG, ...stored }
   } catch {

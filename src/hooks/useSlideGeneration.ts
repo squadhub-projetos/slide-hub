@@ -432,9 +432,10 @@ async function runGeneration(ctx: StrategyContext): Promise<void> {
         previous: previous?.plan.title,
         next: project.slides[index + 1]?.plan.title,
       },
-      references: selectReferences(useTemplateStore.getState().all(), style.id, slide.plan),
+      references: selectReferences(useTemplateStore.getState().all(), style, slide.plan),
       influence: testCfg.referenceInfluence,
       attachments: request.attachments,
+      brandNegativePrompt: style.textRules.negativePrompt,
     })
     const creativeMeta = {
       compositionArchetype: brief.compositionArchetype,
